@@ -76,20 +76,26 @@ class MainWindow(QMainWindow):
         self.grapher = money_manager.Grapher(self.figure, self.moneyManager)
 
         # Layout order
-        btn = QPushButton("Change Graph")
         
-        layout.addWidget(self.grapher.basic_plot(), 0, 0, 1, 2)
-        layout.addWidget(btn, 1, 0)
-        layout.addWidget(QPushButton("Gay2"), 1, 1)
+        btn_graph = QPushButton('Change plot')
+        btn_pie = QPushButton('Change pie')
         
-        btn.clicked.connect(self.clicked)
+        btn_graph.clicked.connect(self.change_scatter)
+        btn_pie.clicked.connect(self.change_pie)
+        
+        layout.addWidget(self.grapher.basic_plot('food'), 0, 0, 1, 2)
+        layout.addWidget(btn_graph, 1, 0)
+        layout.addWidget(btn_pie, 1, 1)
         
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
     
-    def clicked(self):
-        self.grapher.random_plot()
+    def change_scatter(self):
+        self.grapher.basic_plot('')
+        
+    def change_pie(self):
+        self.grapher.pie_plot('food')
         
                 
 

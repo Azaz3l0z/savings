@@ -3,10 +3,13 @@ import re
 import xlrd
 import pandas as pd
 
+from copy import deepcopy
 from functools import reduce
 from datetime import datetime
 
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import matplotlib.ticker as mtick
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 categories = {
@@ -77,6 +80,10 @@ class MoneyO(object):
             pd.DataFrame: Current data of the class in a dataframe format
         """
         self.df = self.df.sort_values(by=["date"])
+        
+        if self.df['date'].dtype != 'datetime64[ns]':
+            self.df['date'] =  pd.to_datetime(self.df['date'], format='%Y-%m-%d')
+        
         return self.df
 
     def add_data(self, src_file: str) -> None:
@@ -167,7 +174,7 @@ class MoneyO(object):
         return df
     
     @staticmethod
-    def group_expenses(expenses: list, category: str) -> dict:
+    def group_expenses(expenses: pd.DataFrame, category: str) -> dict:
         def dict_walker(_dict: dict, pre = None):
             pre = pre if pre else []
             
@@ -202,7 +209,8 @@ class MoneyO(object):
 
         # Now we create a copy of the categories to remove every key / value
         # that we don't need
-        _dict = categories.copy()
+        
+        _dict = deepcopy(categories)
 
         for i in range(len(category)):
             sub_dict = reduce(lambda x, y: x[y], category[:i], _dict)
@@ -217,21 +225,23 @@ class MoneyO(object):
                 items.pop(category[i])
                 for item in items:
                     sub_dict.remove(item)
-                
+                    
         # Finally we perform a regular expression search using the terms
         for path in dict_walker(_dict):
             path, sub_string = path[:-1], path[-1]
             matches = []
             
             sub_dict = reduce(lambda x, y: x[y], path[:-1], _dict)
-            sub_dict[sub_dict.index(sub_string)] = {sub_string: matches}
 
-            for item in expenses:
+            for i, item in enumerate(expenses['description']):
                 match = re.search(f'(?i){sub_string}', item)
                 
                 if match:
-                    matches.append(item)
-        return 
+                    matches.append(i)
+
+            sub_dict[sub_dict.index(sub_string)] = {sub_string: expenses.iloc[matches]}
+            
+        return _dict, dict_walker(_dict)
 
 
 class Grapher(object):
@@ -245,49 +255,66 @@ class Grapher(object):
         self.figure.clf()
         return self.canvas
         
-    def basic_plot(self, ignore_cases: list = []):
+    def basic_plot(self, category: str):
         self.figure.clf()
-        data = self.moneyManager.get_data()
+        data = self.moneyManager.get_data()  
+        organised = MoneyO.group_expenses(data, category)
         
-        for case in ignore_cases:
-            data = data.drop(index=case)
-            
-        category = 'Mercadona'
-                
-        organised = MoneyO.group_expenses(data["description"], category)
-        categories = list(organised.keys())
-
-        data = data.iloc[organised[categories[1]]]
-
-        x = data["date"]
-        y = data["amount"]
-        
-        # self.figure.clear()
+        # Plot configuration
         ax = self.figure.add_subplot(111)
-        ax.set_title(category)
-        ax.plot(x, y, '.')
+        ax.set_title(category.capitalize())
         ax.axline((0, 0), (1, 0), linewidth=1, color='k')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m'))
         
-        # Set ticks
-        xticks = []
-        for i in data.index:
-            date = datetime.strptime(data["date"][i], '%Y-%m-%d')
-            xticks.append(date.strftime("%d-%m"))
+        # Add actual plot
+        _max, _min = data["date"][0], data["date"][0]
+        for path in organised[1]:
+            frame = reduce(lambda x, y: x[y], path[:-1], organised[0])
+            x = frame["date"]
+            y = frame["amount"]
 
-        ax.set_xticks(data["date"])
-        ax.set_xticklabels(xticks)
+            ax.plot(x, y, '.', label = path[-2])
+            
+            _max = max(x) if max(x) > _max else _max
+            _min = min(x) if min(x) < _min else _min
+            
+        
+        ax.set_xlim(_min - (_max - _min)*0.05, _max + (_max - _min)*0.05)               
+        ax.legend(loc='lower right', fontsize='x-large')
         
         self.canvas.draw()
         
         return self.canvas
 
-    def random_plot(self):
+    def pie_plot(self, category: str):
         self.figure.clf()
-        data = [1, 4, 3, 1]
+        money_limit = 0.04
+        
+        data = self.moneyManager.get_data()  
+        organised = MoneyO.group_expenses(data, category)
+        
+        pie_dict = {}
+        
+        for path in organised[1]:   
+            pie_dict[path[-2]] = len(path[-1].index)
+        
+        pie_dict = {item: value / sum(pie_dict.values()) 
+                       for item, value in pie_dict.items()}
+        
+        pie_dict['Other'] = 0
+        for value in pie_dict.values():
+            if value < money_limit:
+                pie_dict['Other'] += value
+        
+        pie_dict = {key: value for key, value in pie_dict.items() if value > money_limit}
+                
         ax = self.figure.add_subplot(111)
-        ax.plot(data)
+        ax.set_title(category.capitalize())
+        ax.pie(pie_dict.values(), labels = pie_dict.keys(), autopct='%1.1f%%')
         
         self.canvas.draw()
+        
+        return self.canvas
 
 
 def main():
