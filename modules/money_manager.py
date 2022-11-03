@@ -52,14 +52,19 @@ class MoneyO(object):
         self.user = user
         self.__save_folder = os.path.abspath(self.__default_save_folder)
         self.__save_file = os.path.join(self.__save_folder, self.user + '.csv')
-    
-        self.df = {
+
+        # Create save folder in case it doesn't exist
+        if not os.path.isdir(self.__save_folder):
+            os.makedirs(self.__save_folder)    
+
+        # Dictionary of all transactions    
+        self.transactions = {
             "date": [],
             "description": [],
             "amount": []
         }
         
-        self.df = pd.DataFrame(self.df)
+        self.transactions = pd.DataFrame(self.transactions)
         
         self.__load_save()
         
@@ -67,10 +72,8 @@ class MoneyO(object):
         """_summary_
         Saves current dataframe in a file with the username as the save file
         """
-        if not os.path.isdir(self.__save_folder):
-            os.makedirs(self.__save_folder)    
-        
-        self.df.to_csv(self.__save_file, index=False)
+
+        self.transactions.to_csv(self.__save_file, index=False)
                
     def get_data(self) -> pd.DataFrame:
         """
@@ -79,12 +82,12 @@ class MoneyO(object):
         Returns:
             pd.DataFrame: Current data of the class in a dataframe format
         """
-        self.df = self.df.sort_values(by=["date"])
+        self.transactions = self.transactions.sort_values(by=["date"])
         
-        if self.df['date'].dtype != 'datetime64[ns]':
-            self.df['date'] =  pd.to_datetime(self.df['date'], format='%Y-%m-%d')
+        if self.transactions['date'].dtype != 'datetime64[ns]':
+            self.transactions['date'] =  pd.to_datetime(self.transactions['date'], format='%Y-%m-%d')
         
-        return self.df
+        return self.transactions
 
     def add_data(self, src_file: str) -> None:
         """
@@ -110,13 +113,13 @@ class MoneyO(object):
         bank = IBAN[4:8]
         df = self.__read_excel(src_file, banks[bank]["row"] - 1, banks[bank]["col"])
         
-        for old, new in zip(df, self.df):
+        for old, new in zip(df, self.transactions):
             df = df.rename(columns={old: new})
                 
-        self.df = pd.concat([self.df, df], ignore_index=True)
-        self.df["date"] = pd.to_datetime(self.df["date"])
+        self.transactions = pd.concat([self.transactions, df], ignore_index=True)
+        self.transactions["date"] = pd.to_datetime(self.transactions["date"])
         
-        self.df = self.df.drop_duplicates()
+        self.transactions = self.transactions.drop_duplicates()
         
     def __load_save(self) -> None:
         """
@@ -124,7 +127,7 @@ class MoneyO(object):
         """
         if os.path.isfile(self.__save_file):
             df = pd.read_csv(self.__save_file)
-            self.df = pd.concat([self.df, df])
+            self.transactions = pd.concat([self.transactions, df])
         
     def __get_IBAN(self, df: pd.DataFrame) -> str:
         """
