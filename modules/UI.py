@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
         btn_graph.clicked.connect(self.change_scatter)
         btn_pie.clicked.connect(self.change_pie)
         
-        layout.addWidget(self.grapher.basic_plot('food'), 0, 0, 1, 2)
+        # layout.addWidget(self.grapher.basic_plot('food'), 0, 0, 1, 2)
         layout.addWidget(btn_graph, 1, 0)
         layout.addWidget(btn_pie, 1, 1)
         
